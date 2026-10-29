@@ -30,6 +30,15 @@ android {
     }
 
     signingConfigs {
+        // D~C@T: fixed debug key committed to the repo so every CI debug build has the same
+        // signature and installs as an update over the previous one.
+        create("dcatDebug") {
+            storeFile = file("dcat-debug.p12")
+            storeType = "PKCS12"
+            storePassword = "dcatdebug"
+            keyAlias = "dcatdebug"
+            keyPassword = "dcatdebug"
+        }
         create("release") {
             storeFile = file("release.jks")
             storePassword = "123456"
@@ -60,6 +69,7 @@ android {
 
     buildTypes {
         debug {
+            signingConfig = signingConfigs.getByName("dcatDebug")
         }
         release {
             isMinifyEnabled = true
@@ -73,7 +83,7 @@ android {
     }
 
     base {
-        archivesName.set("antiGem")
+        archivesName.set("DCAT")
     }
 
     compileOptions {

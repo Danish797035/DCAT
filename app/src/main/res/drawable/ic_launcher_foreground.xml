@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<inset xmlns:android="http://schemas.android.com/apk/res/android"
-    android:drawable="@drawable/splash_logo"
-    android:inset="10dp" />
+<!-- D~C@T launcher foreground: full-bleed kitten art, subject kept inside the adaptive-icon safe zone -->
+<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
+    android:src="@drawable/ic_launcher_fg"
+    android:filter="true"
+    android:antialias="true"
+    android:gravity="fill" />
