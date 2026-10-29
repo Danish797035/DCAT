@@ -3,8 +3,9 @@ package com.example.gemini.theme
 import androidx.compose.ui.graphics.Color
 
 // Claude-inspired warm color palette
-val ClaudeTerracotta = Color(0xFFD97706)
-val ClaudeTerracottaDark = Color(0xFFB45309)
+// D~C@T: the accent follows the user's choice (Settings → Appearance → Accent colour)
+val ClaudeTerracotta: Color get() = AccentPalette.accent
+val ClaudeTerracottaDark: Color get() = AccentPalette.accentDeep
 val ClaudeCream = Color(0xFFF9F9FB)
 val ClaudeWarmSurface = Color(0xFFF9F9FB)
 val ClaudeUserBubbleLight = Color(0xFFE8EAED)

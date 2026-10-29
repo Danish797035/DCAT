@@ -36,6 +36,7 @@ class AuthPreferences(private val context: Context) {
         val CONTEXT_WINDOW_LIMIT = androidx.datastore.preferences.core.intPreferencesKey("context_window_limit")
         val SUMMARY_MODEL_ID = stringPreferencesKey("summary_model_id")
         val ENABLED_MODELS = androidx.datastore.preferences.core.stringSetPreferencesKey("enabled_models")
+        val KNOWN_MODEL_IDS = androidx.datastore.preferences.core.stringSetPreferencesKey("dcat_known_model_ids")
         val IS_DEV_MODE_ENABLED = androidx.datastore.preferences.core.booleanPreferencesKey("is_dev_mode_enabled")
         val CHAT_FONT_SCALE = androidx.datastore.preferences.core.floatPreferencesKey("chat_font_scale")
         val WORKING_ANIMATION_ENABLED = androidx.datastore.preferences.core.booleanPreferencesKey("working_animation_enabled")
@@ -471,6 +472,33 @@ class AuthPreferences(private val context: Context) {
         context.dataStore.edit { prefs ->
             prefs[ENABLED_MODELS] = ids
         }
+    }
+
+    /** D~C@T: every model id seen from the server so far, used to tell newly released models apart. */
+    val knownModelIds: Flow<Set<String>?> = context.dataStore.data.map { it[KNOWN_MODEL_IDS] }
+
+    /**
+     * Records the server's model ids as known. Ids never seen before are added to the enabled set (when the
+     * user has one), so new models show up enabled while models the user switched off stay off.
+     * Returns the newly seen ids.
+     */
+    suspend fun mergeNewlySeenModels(serverIds: Set<String>): Set<String> {
+        var newIds: Set<String> = emptySet()
+        context.dataStore.edit { prefs ->
+            val known = prefs[KNOWN_MODEL_IDS]
+            if (known == null) {
+                // first run with this feature: nothing to compare against, just remember what exists now
+                prefs[KNOWN_MODEL_IDS] = serverIds
+                return@edit
+            }
+            newIds = serverIds - known
+            if (newIds.isNotEmpty()) {
+                val enabled = prefs[ENABLED_MODELS]
+                if (!enabled.isNullOrEmpty()) prefs[ENABLED_MODELS] = enabled + newIds
+            }
+            prefs[KNOWN_MODEL_IDS] = known + serverIds
+        }
+        return newIds
     }
 
 

@@ -329,6 +329,40 @@ class AgyMcpManager(
         }
     }
 
+    /**
+     * D~C@T agentic browser: adds URL-based servers that are not in mcp_config.json yet, in one read/write.
+     * Servers already present (enabled or disabled by the user) are left untouched. Returns the names of [names]
+     * that are present afterwards, or null when the config could not be written.
+     */
+    suspend fun ensureUrlServers(specs: List<com.example.gemini.domain.model.McpServerSpec>, names: Set<String>): Set<String>? {
+        return try {
+            val rawConfig = com.example.gemini.data.daemon.IdeApiClient.getMcpConfig() ?: "{}"
+            val json = if (rawConfig.trim().startsWith("{")) org.json.JSONObject(rawConfig) else org.json.JSONObject()
+            val serversObj = json.optJSONObject("mcpServers") ?: org.json.JSONObject().also { json.put("mcpServers", it) }
+            var changed = false
+            for (spec in specs) {
+                if (serversObj.has(spec.serverName)) continue
+                val obj = org.json.JSONObject().put("serverUrl", spec.serverUrl)
+                if (spec.headers.isNotEmpty()) {
+                    val h = org.json.JSONObject()
+                    spec.headers.forEach { (k, v) -> h.put(k, v) }
+                    obj.put("headers", h)
+                }
+                serversObj.put(spec.serverName, obj)
+                changed = true
+            }
+            if (changed) {
+                if (!com.example.gemini.data.daemon.IdeApiClient.saveMcpConfig(json.toString(2))) return null
+                agyHubClient.refreshMcpServers(AuthPreferences.currentHubUrl)
+                loadMcpServers()
+            }
+            names.filter { serversObj.has(it) }.toSet()
+        } catch (e: Exception) {
+            Log.w("AgyMcpManager", "ensureUrlServers failed: ${e.message}")
+            null
+        }
+    }
+
     fun deleteMcpServer(serverName: String) {
         backendScope.launch {
             _isMcpLoading.value = true

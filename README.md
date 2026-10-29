@@ -6,6 +6,8 @@
 
 <br/>
 
+D~C@T is a fork of AntiGem by Santosh Kurmi (GPL-3.0).
+
 <div align="center">
 
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0+-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org)

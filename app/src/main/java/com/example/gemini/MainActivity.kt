@@ -425,6 +425,12 @@ class MainActivity : ComponentActivity() {
     }
 
 
+    override fun onStart() {
+        super.onStart()
+        // D~C@T: lifecycle ON_START → refresh models/quotas and finish agentic-browser setup
+        runCatching { chatViewModel.onAppForeground() }
+    }
+
     override fun onResume() {
         super.onResume()
         instanceRef = java.lang.ref.WeakReference(this)

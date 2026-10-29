@@ -221,7 +221,16 @@ class ClaudeConfigManager(
     }
 
     fun addMcp(req: ClaudeMcpAddRequest, cwd: String?) {
-        scope.launch {
+        scope.launch { addMcpNow(req, cwd) }
+    }
+
+    /** D~C@T: names of Claude's configured MCP servers, or null when the bridge / CLI can't be reached. */
+    suspend fun mcpServerNamesOrNull(): Set<String>? =
+        client.mcpServers(null).getOrNull()?.takeIf { it.success }?.servers?.map { it.name }?.toSet()
+
+    /** Adds a server and waits for it; returns true when the CLI accepted it. */
+    suspend fun addMcpNow(req: ClaudeMcpAddRequest, cwd: String?): Boolean {
+        run {
             _mcpAddError.value = null
             setMcpOp(req.name, "Adding…")
             val error = client.addMcpServer(req).fold(
@@ -232,7 +241,7 @@ class ClaudeConfigManager(
                 setMcpOp(req.name, null)
                 _mcpAddError.value = req.name to error
                 _messages.tryEmit("Could not add '${req.name}': $error")
-                return@launch
+                return false
             }
             // added: the status check connects to it (can take a few seconds)
             setMcpOp(req.name, "Connecting…")
@@ -247,6 +256,7 @@ class ClaudeConfigManager(
                 }
             )
         }
+        return true
     }
 
     fun removeMcp(name: String, scopeName: String?, cwd: String?) {

@@ -73,6 +73,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     /** Dictation for Claude chats (Claude's speech-to-text through the bridge). */
     val claudeVoice = com.example.gemini.data.agent.claude.ClaudeVoiceTranscriber(claudeClient) { claudePrefs.voiceLanguage.value }
 
+    /** D~C@T: registers the Browser Automation + Google Flow MCP servers for both agents (Settings → Automation). */
+    private val agenticBrowser = com.example.gemini.data.agent.AgenticBrowserBootstrap(
+        context = application,
+        scope = viewModelScope,
+        ensureAgy = { specs, names ->
+            if (agyBackend.agyAuthInfo.value.isLoggedIn) mcpManager.ensureUrlServers(specs, names) else null
+        },
+        listClaude = { if (isClaudeEnabled) claudeConfig.mcpServerNamesOrNull() else null },
+        addClaude = { req -> claudeConfig.addMcpNow(req, null) }
+    )
+
+    /** Called when the app comes back to the foreground (Activity ON_START). */
+    fun onAppForeground() {
+        agyBackend.refreshModelsOnForeground()
+        agenticBrowser.requestRun()
+    }
+
     /** Agent of the conversation on screen; chat actions go to that agent's backend. */
     val activeAgent: StateFlow<AgentKind> = store.currentConversation
         .map { it?.agent ?: AgentKind.AGY }
@@ -959,6 +976,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         agyBackend.start()
         if (isClaudeEnabled) claudeBackend.start()
+        agenticBrowser.requestRun()
+        // after an Antigravity sign-in or once Claude is ready, register the agentic-browser MCP servers
+        viewModelScope.launch {
+            agyBackend.agyAuthInfo.map { it.isLoggedIn }.distinctUntilChanged().filter { it }.collect { agenticBrowser.requestRun() }
+        }
+        viewModelScope.launch {
+            claudeAccount.state.map { it == com.example.gemini.data.agent.claude.ClaudeStatus.READY }.distinctUntilChanged().filter { it }
+                .collect { agenticBrowser.requestRun() }
+        }
         // the first chat follows the new-chat agent (Antigravity's own start-up chat only fills in when it is AGY)
         if (isClaudeEnabled && (newChatAgent.value == AgentKind.CLAUDE || AgentKind.AGY !in enabledAgents.value)) startNewChat()
         claudeAccount.onAccountChanged = {

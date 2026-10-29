@@ -1756,6 +1756,19 @@ class AgyChatBackend(
         }
     }
 
+    private var lastForegroundRefreshMs = 0L
+
+    /** D~C@T: refresh models and quotas when the app comes back to the foreground (throttled to once a minute). */
+    fun refreshModelsOnForeground() {
+        if (!_agyAuthInfo.value.isLoggedIn) return
+        val now = System.currentTimeMillis()
+        if (now - lastForegroundRefreshMs < 60_000L) return
+        if (_isStreaming.value || _isRefreshingModels.value) return
+        lastForegroundRefreshMs = now
+        refreshQuotas(force = true)
+        startModelAutoRefresh()
+    }
+
     fun stopModelAutoRefresh() {
         modelAutoRefreshJob?.cancel()
         modelAutoRefreshJob = null
@@ -1777,6 +1790,9 @@ class AgyChatBackend(
                     val models = modelsRes.getOrThrow()
                     if (models.isNotEmpty()) {
                         com.example.gemini.data.remote.AgyHubClient.updateModelRegistry(models)
+                        // D~C@T: newly released models start enabled; the user's own disabled choices stick
+                        runCatching { authPrefs.mergeNewlySeenModels(models.map { it.id }.toSet()) }
+                            .onSuccess { if (it.isNotEmpty()) Log.i("AgyChatBackend", "New models enabled: $it") }
                         _availableModels.value = models
                         val currentSelected = _selectedModelId.value
                         val existingValidModel = if (currentSelected.isNotBlank()) {

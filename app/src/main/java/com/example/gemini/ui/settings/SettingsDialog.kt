@@ -85,7 +85,7 @@ import com.example.gemini.data.daemon.IdeApiClient
 
 enum class SettingsSection(val title: String, val subtitle: String) {
     MAIN("Settings & Preferences", "Configure your AntiGem experience"),
-    APPEARANCE("Appearance & Theme", "Theme, dark mode, and chat font scaling"),
+    APPEARANCE("Appearance & Theme", "Theme, accent colour, dark mode, and chat font scaling"),
     SERVERS("Servers & Connectivity", "Configure AGY Hub and IDE Bridge endpoints"),
     WEBVIEW_EXTENSIONS("WebView Extensions", "Install and manage MCP extensions for the browser"),
     MCP("MCP Servers", "Model Context Protocol tools & integrations"),
@@ -999,6 +999,9 @@ private fun AppearanceSubScreen(
                 }
             }
         }
+
+        // D~C@T: accent colour presets
+        AccentColorPicker()
 
         Spacer(modifier = Modifier.height(6.dp))
 
@@ -7913,6 +7916,9 @@ private fun AutomationSubScreen(
                 }
             }
         }
+
+        // D~C@T: auto-register browser + Flow MCP servers for both agents
+        AgenticBrowserToggleCard(cardBg = cardBg, cardBorder = cardBorder)
 
         // 1. Browser Automation Card
         Card(

@@ -26,25 +26,25 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
-private val DarkColorScheme = darkColorScheme(
+private fun darkScheme() = darkColorScheme(
     primary = ClaudeTerracotta,
     secondary = ClaudeTerracottaDark,
     background = ClaudeDarkBg,
     surface = ClaudeDarkBg,
     surfaceTint = Color.Transparent,
-    onPrimary = Color.White,
+    onPrimary = AccentPalette.onAccent,
     onBackground = TextPrimaryDark,
     onSurface = TextPrimaryDark,
     surfaceVariant = ClaudeUserBubbleDark
 )
 
-private val LightColorScheme = lightColorScheme(
+private fun lightScheme() = lightColorScheme(
     primary = ClaudeTerracotta,
     secondary = ClaudeTerracottaDark,
     background = ClaudeCream,
     surface = ClaudeCream,
     surfaceTint = Color.Transparent,
-    onPrimary = Color.White,
+    onPrimary = AccentPalette.onAccent,
     onBackground = TextPrimaryLight,
     onSurface = TextPrimaryLight,
     surfaceVariant = ClaudeUserBubbleLight
@@ -113,7 +113,11 @@ fun GeminiTheme(
     darkTheme: Boolean = isSystemInDarkThemeRobust(),
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val ctx = LocalContext.current
+    remember(ctx) { AccentPalette.ensureLoaded(ctx); true }
+    if (AccentPalette.isDark != darkTheme) AccentPalette.isDark = darkTheme
+    val accentId = AccentPalette.presetId
+    val colorScheme = remember(darkTheme, accentId) { if (darkTheme) darkScheme() else lightScheme() }
 
     val view = LocalView.current
     if (!view.isInEditMode) {
