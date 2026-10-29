@@ -146,7 +146,9 @@ data class AiModel(
     val isDefault: Boolean = false,
     val key: String = "",
     val baseName: String = "",
-    val tier: String? = null
+    val tier: String? = null,
+    /** D~C@T: non-null when the server lists the model but it can't be used right now (plan / rollout). */
+    val unavailableReason: String? = null
 ) {
     companion object {
         val DEFAULT_MODELS = emptyList<AiModel>()

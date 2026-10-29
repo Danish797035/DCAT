@@ -1787,13 +1787,15 @@ class AgyChatBackend(
                 val quotasRes = quotasDeferred.await()
 
                 if (modelsRes.isSuccess) {
-                    val models = modelsRes.getOrThrow()
+                    val allModels = modelsRes.getOrThrow()
+                    // D~C@T: unavailable models are shown (greyed) but never selected
+                    val models = allModels.filter { it.unavailableReason == null }
                     if (models.isNotEmpty()) {
-                        com.example.gemini.data.remote.AgyHubClient.updateModelRegistry(models)
+                        com.example.gemini.data.remote.AgyHubClient.updateModelRegistry(allModels)
                         // D~C@T: newly released models start enabled; the user's own disabled choices stick
                         runCatching { authPrefs.mergeNewlySeenModels(models.map { it.id }.toSet()) }
                             .onSuccess { if (it.isNotEmpty()) Log.i("AgyChatBackend", "New models enabled: $it") }
-                        _availableModels.value = models
+                        _availableModels.value = allModels
                         val currentSelected = _selectedModelId.value
                         val existingValidModel = if (currentSelected.isNotBlank()) {
                             models.find { it.id == currentSelected || it.key == currentSelected }

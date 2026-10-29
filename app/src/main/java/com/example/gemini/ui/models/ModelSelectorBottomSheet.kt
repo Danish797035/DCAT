@@ -24,6 +24,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
@@ -447,6 +449,13 @@ private fun groupModelsByBaseName(models: List<AiModel>): List<SubGroupedModel> 
                 else -> ""
             }
             ModelVariant(m, label)
+        }.let { vs ->
+            // D~C@T: variants without a tier would all show the same long name; label them by key
+            vs.map { v ->
+                if (v.tierLabel.isNotBlank() || vs.size == 1) v
+                else v.copy(tierLabel = v.model.key.substringAfterLast('-').ifBlank { v.model.displayName }
+                    .replaceFirstChar { it.uppercase() })
+            }.distinctBy { it.tierLabel.lowercase() }
         }
 
         SubGroupedModel(
@@ -545,6 +554,7 @@ private fun CategoryModelsSubView(
 /**
  * Multi-tier model card allowing direct selection of thinking effort (High, Medium, Low).
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TieredModelGroupCard(
     group: SubGroupedModel,
@@ -608,17 +618,19 @@ private fun TieredModelGroupCard(
             Spacer(modifier = Modifier.height(6.dp))
 
             // Thinking Effort Selector Pills
-            Row(
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 group.variants.forEach { variant ->
                     val isSelected = variant.model.id == selectedModelId
+                    val usable = variant.model.unavailableReason == null
                     Surface(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .clickable { onSelectModel(variant.model.id) },
+                            .alpha(if (usable) 1f else 0.4f)
+                            .clickable(enabled = usable) { onSelectModel(variant.model.id) },
                         shape = RoundedCornerShape(8.dp),
                         color = if (isSelected) brandColor else brandColor.copy(alpha = 0.12f)
                     ) {
@@ -637,6 +649,7 @@ private fun TieredModelGroupCard(
                             }
                             Text(
                                 text = variant.tierLabel.ifBlank { variant.model.displayName },
+                                maxLines = 1,
                                 fontSize = 11.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                 color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
@@ -786,7 +799,8 @@ private fun ModelRowItem(
             .fillMaxWidth()
             .defaultMinSize(minHeight = 60.dp)
             .clip(RoundedCornerShape(12.dp))
-            .clickable { onSelect() },
+            .alpha(if (model.unavailableReason == null) 1f else 0.5f)
+            .clickable(enabled = model.unavailableReason == null) { onSelect() },
         color = cardBg,
         shape = RoundedCornerShape(12.dp)
     ) {
@@ -796,13 +810,21 @@ private fun ModelRowItem(
                 .padding(horizontal = 14.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = model.displayName.replace(Regex("\\s*\\(?Thinking\\)?", RegexOption.IGNORE_CASE), "").trim(),
-                fontSize = 14.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f)
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = model.displayName.replace(Regex("\\s*\\(?Thinking\\)?", RegexOption.IGNORE_CASE), "").trim(),
+                    fontSize = 14.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                model.unavailableReason?.let {
+                    Text(
+                        text = it,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+            }
 
             if (isSelected) {
                 Box(

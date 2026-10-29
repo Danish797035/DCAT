@@ -129,21 +129,37 @@ class AgyModelService {
                 }
             }
 
-            // D~C@T: keep the server's preferred order, but never drop a model the server
-            // offers just because it is missing from agent_model_sorts (newly released models
-            // often appear in `models` before the sort groups are updated).
-            val visibleKeys = response.models.mapNotNull { (key, details) ->
-                if (!details.is_internal && !details.disabled && details.display_name.isNotBlank()) {
-                    key
-                } else null
+            // D~C@T: the agent sort list is the source of truth for chat models. Extra models from
+            // `models` are added only if they are real chat models: not tab/command/image/search/
+            // commit/audio helpers, not deprecated, not internal, and not a duplicate display name.
+            val auxIds = (response.tab_model_ids + response.command_model_ids +
+                response.image_generation_model_ids + response.mquery_model_ids +
+                response.web_search_model_ids + response.commit_message_model_ids +
+                response.audio_transcription_model_ids + response.deprecated_model_ids.keys).toSet()
+            val sortedNames = sortedIds.mapNotNull { modelsMap[it]?.display_name?.trim()?.lowercase() }.toMutableSet()
+            val extraKeys = mutableListOf<String>()
+            for ((key, details) in modelsMap) {
+                if (key in sortedIds || key in auxIds) continue
+                if (details.is_internal || details.disabled || details.display_name.isBlank()) continue
+                val name = details.display_name.trim().lowercase()
+                if (name.contains("image") || name.contains("embedding") || name.contains("tab ")) continue
+                if (!sortedNames.add(name)) continue
+                extraKeys.add(key)
             }
-            val keysToProcess = sortedIds + visibleKeys.filter { it !in sortedIds }
+            val keysToProcess = sortedIds + extraKeys
 
             val resultList = mutableListOf<AiModel>()
+            val seenNames = mutableSetOf<String>()
             for (key in keysToProcess) {
                 val details = modelsMap[key] ?: continue
-                if (details.disabled) continue
                 if (details.is_internal) continue
+                // Disabled models in the agent list are kept but marked, so the user sees them
+                // greyed out with a reason instead of silently missing.
+                if (details.disabled && key !in sortedIds) continue
+                if (!seenNames.add(details.display_name.ifBlank { key }.trim().lowercase())) continue
+                val unavailableReason = if (details.disabled) {
+                    details.beta_warning_message.ifBlank { "Not available on your plan yet" }
+                } else null
 
                 val displayName = details.display_name.ifBlank { key }
                 val modelEnum = details.model
@@ -182,7 +198,8 @@ class AgyModelService {
                         description = details.description,
                         key = key,
                         baseName = baseName,
-                        tier = tier
+                        tier = tier,
+                        unavailableReason = unavailableReason
                     )
                 )
             }
