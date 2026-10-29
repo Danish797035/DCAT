@@ -269,8 +269,9 @@ func (m *Manager) handleMcp(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		resps, err := m.oneShot(q.Get("cwd"), 60*time.Second, map[string]interface{}{"subtype": "mcp_status"})
-		if err != nil {
-			writeJSON(w, http.StatusOK, map[string]interface{}{"success": false, "error": err.Error()})
+		if err != nil || len(resps) == 0 {
+			// D~C@T: Claude Code missing or broken: still show what is saved in ~/.claude.json
+			writeJSON(w, http.StatusOK, map[string]interface{}{"success": true, "servers": m.savedUserMcpServers()})
 			return
 		}
 		var status struct {
@@ -316,7 +317,22 @@ func (m *Manager) handleMcp(w http.ResponseWriter, r *http.Request) {
 			}
 			args = append(args, "--", req.Name, req.URL)
 		}
-		m.runAndReply(w, req.Cwd, 60*time.Second, args...)
+		out, err := m.runCLIIn(req.Cwd, 60*time.Second, args...)
+		if err != nil {
+			// D~C@T: when the claude CLI can't run (not installed, broken install: exit 127, ...), save the
+			// user-scope server straight into ~/.claude.json so it is ready once Claude Code works.
+			if scope == "user" {
+				if ferr := m.saveUserMcpServer(req, transport); ferr == nil {
+					m.invalidateCaches()
+					writeJSON(w, http.StatusOK, map[string]interface{}{"success": true, "output": "saved to ~/.claude.json (Claude Code CLI unavailable)"})
+					return
+				}
+			}
+			writeJSON(w, http.StatusOK, map[string]interface{}{"success": false, "error": cliErrorText(out, err), "output": string(out)})
+			return
+		}
+		m.invalidateCaches()
+		writeJSON(w, http.StatusOK, map[string]interface{}{"success": true, "output": string(out)})
 	case http.MethodDelete:
 		name := q.Get("name")
 		if !safeNameRe.MatchString(name) {
@@ -328,10 +344,137 @@ func (m *Manager) handleMcp(w http.ResponseWriter, r *http.Request) {
 			args = append(args, "--scope", s)
 		}
 		args = append(args, "--", name)
-		m.runAndReply(w, q.Get("cwd"), 60*time.Second, args...)
+		out, err := m.runCLIIn(q.Get("cwd"), 60*time.Second, args...)
+		if err != nil {
+			if q.Get("scope") == "" || q.Get("scope") == "user" {
+				if removed, ferr := m.removeUserMcpServer(name); ferr == nil && removed {
+					m.invalidateCaches()
+					writeJSON(w, http.StatusOK, map[string]interface{}{"success": true, "output": "removed from ~/.claude.json"})
+					return
+				}
+			}
+			writeJSON(w, http.StatusOK, map[string]interface{}{"success": false, "error": cliErrorText(out, err), "output": string(out)})
+			return
+		}
+		m.invalidateCaches()
+		writeJSON(w, http.StatusOK, map[string]interface{}{"success": true, "output": string(out)})
 	default:
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]interface{}{"success": false, "error": "GET, POST or DELETE"})
 	}
+}
+
+// --- D~C@T: direct ~/.claude.json access (used when the claude CLI can't run) ---------------------
+
+func (m *Manager) claudeJSONPath() string { return filepath.Join(m.HomeDir, ".claude.json") }
+
+func (m *Manager) readClaudeJSON() (map[string]interface{}, error) {
+	doc := map[string]interface{}{}
+	b, err := os.ReadFile(m.claudeJSONPath())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return doc, nil
+		}
+		return nil, err
+	}
+	if len(bytes.TrimSpace(b)) == 0 {
+		return doc, nil
+	}
+	if err := json.Unmarshal(b, &doc); err != nil {
+		return nil, err
+	}
+	return doc, nil
+}
+
+func (m *Manager) writeClaudeJSON(doc map[string]interface{}) error {
+	b, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		return err
+	}
+	tmp := m.claudeJSONPath() + ".tmp"
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, m.claudeJSONPath())
+}
+
+func (m *Manager) saveUserMcpServer(req mcpAddRequest, transport string) error {
+	doc, err := m.readClaudeJSON()
+	if err != nil {
+		return err
+	}
+	servers, _ := doc["mcpServers"].(map[string]interface{})
+	if servers == nil {
+		servers = map[string]interface{}{}
+	}
+	entry := map[string]interface{}{"type": transport}
+	if transport == "stdio" {
+		entry["command"] = req.Command
+		entry["args"] = append([]string{}, req.Args...)
+		if len(req.Env) > 0 {
+			entry["env"] = req.Env
+		}
+	} else {
+		entry["url"] = req.URL
+		if len(req.Headers) > 0 {
+			entry["headers"] = req.Headers
+		}
+	}
+	servers[req.Name] = entry
+	doc["mcpServers"] = servers
+	return m.writeClaudeJSON(doc)
+}
+
+func (m *Manager) removeUserMcpServer(name string) (bool, error) {
+	doc, err := m.readClaudeJSON()
+	if err != nil {
+		return false, err
+	}
+	servers, _ := doc["mcpServers"].(map[string]interface{})
+	if _, ok := servers[name]; !ok {
+		return false, nil
+	}
+	delete(servers, name)
+	doc["mcpServers"] = servers
+	return true, m.writeClaudeJSON(doc)
+}
+
+// savedUserMcpServers lists user-scope servers from ~/.claude.json in the mcp_status shape.
+func (m *Manager) savedUserMcpServers() []map[string]interface{} {
+	list := []map[string]interface{}{}
+	doc, err := m.readClaudeJSON()
+	if err != nil {
+		return list
+	}
+	servers, _ := doc["mcpServers"].(map[string]interface{})
+	for _, name := range sortedAnyKeys(servers) {
+		cfg, _ := servers[name].(map[string]interface{})
+		list = append(list, map[string]interface{}{
+			"name": name, "status": "pending", "scope": "user", "config": cfg,
+			"error": "Claude Code is not running; will connect once it is installed and working",
+		})
+	}
+	return list
+}
+
+func sortedAnyKeys(mp map[string]interface{}) []string {
+	keys := make([]string, 0, len(mp))
+	for k := range mp {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// cliErrorText turns a failed CLI run into a readable message (exit 127 = the CLI or its runtime is missing).
+func cliErrorText(out []byte, err error) string {
+	msg := strings.TrimSpace(string(out))
+	if ee, ok := err.(*exec.ExitError); ok && ee.ExitCode() == 127 {
+		return "Claude Code is not installed or its runtime is missing (exit 127). Install it from Claude settings. " + msg
+	}
+	if msg == "" {
+		return err.Error()
+	}
+	return msg + "\n" + err.Error()
 }
 
 func sortedKeys(mp map[string]string) []string {

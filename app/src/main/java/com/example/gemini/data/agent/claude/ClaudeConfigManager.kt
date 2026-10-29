@@ -229,18 +229,18 @@ class ClaudeConfigManager(
         client.mcpServers(null).getOrNull()?.takeIf { it.success }?.servers?.map { it.name }?.toSet()
 
     /** Adds a server and waits for it; returns true when the CLI accepted it. */
-    suspend fun addMcpNow(req: ClaudeMcpAddRequest, cwd: String?): Boolean {
+    suspend fun addMcpNow(req: ClaudeMcpAddRequest, cwd: String?, quiet: Boolean = false): Boolean {
         run {
             _mcpAddError.value = null
             setMcpOp(req.name, "Adding…")
             val error = client.addMcpServer(req).fold(
-                { if (it.success) null else it.error?.lines()?.lastOrNull { l -> l.isNotBlank() } ?: "Add failed" },
+                { if (it.success) null else it.error?.lines()?.firstOrNull { l -> l.isNotBlank() } ?: "Add failed" },
                 { it.message ?: "Add failed" }
             )
             if (error != null) {
                 setMcpOp(req.name, null)
                 _mcpAddError.value = req.name to error
-                _messages.tryEmit("Could not add '${req.name}': $error")
+                if (!quiet) _messages.tryEmit("Could not add '${req.name}': $error")
                 return false
             }
             // added: the status check connects to it (can take a few seconds)
@@ -248,10 +248,11 @@ class ClaudeConfigManager(
             loadMcpNow(cwd)
             setMcpOp(req.name, null)
             val added = _mcpServers.value.find { it.name == req.name }
-            _messages.tryEmit(
+            if (!quiet) _messages.tryEmit(
                 when (added?.status) {
                     "connected" -> "'${req.name}' connected · ${added.tools.size} tools"
                     "failed" -> "'${req.name}' was added but failed to connect"
+                    "pending" -> "Saved '${req.name}'. It will connect once Claude Code is installed"
                     else -> "Added '${req.name}'"
                 }
             )

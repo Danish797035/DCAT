@@ -81,7 +81,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             if (agyBackend.agyAuthInfo.value.isLoggedIn) mcpManager.ensureUrlServers(specs, names) else null
         },
         listClaude = { if (isClaudeEnabled) claudeConfig.mcpServerNamesOrNull() else null },
-        addClaude = { req -> claudeConfig.addMcpNow(req, null) }
+        addClaude = { req -> claudeConfig.addMcpNow(req, null, quiet = true) }
     )
 
     /** Called when the app comes back to the foreground (Activity ON_START). */
