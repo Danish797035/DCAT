@@ -40,6 +40,9 @@ import com.example.gemini.data.agent.ChatSessionStore
 import com.example.gemini.ui.chat.PendingToolApproval
 import kotlinx.coroutines.CoroutineScope
 
+/** D~C@T: how often the Antigravity model list and quotas are re-fetched in the background. */
+private const val MODEL_AUTO_REFRESH_INTERVAL_MS = 5 * 60 * 1000L
+
 /**
  * Antigravity (agy --hub) chat backend: conversation sync, live trajectory stream, prompts, approvals,
  * auth, models and quotas. Moved out of ChatViewModel unchanged; it writes the on-screen chat state into [store].
@@ -288,6 +291,7 @@ class AgyChatBackend(
                         _authFeedbackMessage.tryEmit("Signed in as ${info.displayName.ifBlank { info.email }}")
                     }
                     refreshQuotas(force = false)
+                    startModelAutoRefresh()
                 } else if (userInitiated) {
                     _authFeedbackMessage.tryEmit("Not signed in.")
                 }
@@ -1734,6 +1738,27 @@ class AgyChatBackend(
             )
         }
         _quotas.value = updatedQuotas
+    }
+
+    // D~C@T: keep the model list and quotas live while the app is running, so newly
+    // released models show up without a manual refresh.
+    private var modelAutoRefreshJob: Job? = null
+
+    fun startModelAutoRefresh(intervalMs: Long = MODEL_AUTO_REFRESH_INTERVAL_MS) {
+        if (modelAutoRefreshJob?.isActive == true) return
+        modelAutoRefreshJob = backendScope.launch {
+            while (currentCoroutineContext().isActive) {
+                delay(intervalMs)
+                if (!_isStreaming.value && !_isRefreshingModels.value) {
+                    refreshQuotas(force = true)
+                }
+            }
+        }
+    }
+
+    fun stopModelAutoRefresh() {
+        modelAutoRefreshJob?.cancel()
+        modelAutoRefreshJob = null
     }
 
     fun refreshQuotas(force: Boolean = true, showToastFeedback: Boolean = false) {

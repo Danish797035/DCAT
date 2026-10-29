@@ -317,7 +317,7 @@ fun LocalToolsInstallDialog(
                                         )
                                         Spacer(modifier = Modifier.height(3.dp))
                                         Text(
-                                            text = "AntiGem runs a full Ubuntu Linux environment inside a user-space PRoot container on 64-bit ARM. No device root required.",
+                                            text = "D~C@T runs a full Ubuntu Linux environment inside a user-space PRoot container on 64-bit ARM. No device root required.",
                                             fontSize = 11.5.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )

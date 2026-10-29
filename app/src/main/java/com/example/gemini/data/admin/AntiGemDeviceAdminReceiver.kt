@@ -36,7 +36,7 @@ class AntiGemDeviceAdminReceiver : DeviceAdminReceiver() {
                 putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, getComponentName(context))
                 putExtra(
                     DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                    "Enabling Device Admin protects AntiGem from accidental uninstallation so your Linux environment and coding projects are not lost."
+                    "Enabling Device Admin protects D~C@T from accidental uninstallation so your Linux environment and coding projects are not lost."
                 )
             }
         }

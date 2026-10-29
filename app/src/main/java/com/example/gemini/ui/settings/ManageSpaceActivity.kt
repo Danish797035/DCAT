@@ -253,7 +253,7 @@ private fun ManageSpaceScreen(
                 Spacer(modifier = Modifier.width(8.dp))
                 Column {
                     Text(
-                        text = "AntiGem Space Manager",
+                        text = "D~C@T Space Manager",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground

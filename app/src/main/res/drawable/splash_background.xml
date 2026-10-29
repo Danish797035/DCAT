@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Pure white splash background -->
-    <item android:drawable="@android:color/white" />
+    <!-- Pure black splash background -->
+    <item android:drawable="@android:color/black" />
 
-    <!-- Centered AntiGem Logo -->
+    <!-- Centered D~C@T Logo -->
     <item
         android:gravity="center"
         android:width="160dp"

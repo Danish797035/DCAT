@@ -129,15 +129,15 @@ class AgyModelService {
                 }
             }
 
-            val keysToProcess = if (sortedIds.isNotEmpty()) {
-                sortedIds
-            } else {
-                response.models.mapNotNull { (key, details) ->
-                    if (!details.is_internal && !details.disabled && details.display_name.isNotBlank()) {
-                        key
-                    } else null
-                }
+            // D~C@T: keep the server's preferred order, but never drop a model the server
+            // offers just because it is missing from agent_model_sorts (newly released models
+            // often appear in `models` before the sort groups are updated).
+            val visibleKeys = response.models.mapNotNull { (key, details) ->
+                if (!details.is_internal && !details.disabled && details.display_name.isNotBlank()) {
+                    key
+                } else null
             }
+            val keysToProcess = sortedIds + visibleKeys.filter { it !in sortedIds }
 
             val resultList = mutableListOf<AiModel>()
             for (key in keysToProcess) {

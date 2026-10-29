@@ -103,7 +103,7 @@ fun FullScreenLocalToolsInstaller(
                 title = {
                     Column {
                         Text(
-                            text = "AntiGem Environment",
+                            text = "D~C@T Environment",
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
